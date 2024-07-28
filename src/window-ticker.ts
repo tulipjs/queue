@@ -1,6 +1,10 @@
-import { OnWindowTickFunction, WindowTickerConfig } from "./types/main.ts";
+import {
+  OnWindowTickFunction,
+  WindowTickerConfig,
+  WindowTickerMutable,
+} from "./types/main.ts";
 
-export const windowTicker = () => {
+export const windowTicker = (): WindowTickerMutable => {
   let $loopRunning = false;
   let $loopId: number | undefined = undefined;
   let $fps = 60; // Default FPS

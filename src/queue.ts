@@ -1,12 +1,13 @@
-import {
+import type {
   DelayItemQueue,
   DurationItemQueue,
   QueueItemProps,
+  QueueMutable,
   RepeatItemQueue,
 } from "./types/main.ts";
 import { TickerQueue } from "./enums/main.ts";
 
-export const queue = () => {
+export const queue = (): QueueMutable => {
   let $lastId = 0;
   let $queueList: QueueItemProps[] = [];
   let $queueIdToDelete: number[] = [];

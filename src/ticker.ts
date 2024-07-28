@@ -1,6 +1,7 @@
-import { OnTickFunction, TickerConfig } from "./types/main.ts";
+import type { OnTickFunction, TickerConfig } from "./types/main.ts";
+import { TickerMutable } from "./types/main.ts";
 
-export const ticker = () => {
+export const ticker = (): TickerMutable => {
   let $loopRunning = false;
   let $loopId: number | undefined = undefined;
   let $ticks = 60;

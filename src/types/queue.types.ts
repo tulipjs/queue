@@ -34,3 +34,11 @@ export type RepeatItemQueue = {
   repeatEvery: Milliseconds;
   repeats: number;
 } & BaseItemQueue;
+
+export type QueueMutable = {
+  add: (props: QueueItemProps) => number;
+  addAsync: (props: QueueItemProps) => Promise<number>;
+  remove: (id: number) => void;
+
+  tick: (delta: number) => void;
+};
