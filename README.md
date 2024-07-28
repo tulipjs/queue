@@ -5,7 +5,8 @@ Using `setTimeout` on back and `requestAnimationFrame` on the web.
 
 ## with web
 
-`yarn dlx jsr add @oh/queue`
+Add a file `.npmrc` with `@jsr:registry=https://npm.jsr.io`
+And add to the `package.json` -> `"@oh/queue": "npm:@jsr/oh__queue@1.0.1"`
 
 ```ts
 import { queue, windowTicker, TickerQueue, ticker } from "@oh/queue";
