@@ -1,18 +1,23 @@
-import { queue, ticker, TickerQueue } from "./mod.ts";
+import { queue, TickerQueue, ticker } from "./index.ts";
 
 const $ticker = ticker();
-const $queue = queue();
+const $queue = queue({
+  onResume: $ticker.start,
+  onPause: $ticker.pause,
+});
 
 $ticker.onTick(({ delta }) => $queue.tick(delta));
-$ticker.load({ ticks: 60 });
-$ticker.start();
+$ticker.load({ ticks: 20 });
 
 const startTime = performance.now();
+let a = performance.now();
 $queue.add({
-  type: TickerQueue.DURATION,
-  duration: 5_000,
+  type: TickerQueue.REPEAT,
+  repeatEvery: 1000 / 10,
+  repeats: 10,
   onFunc(delta) {
-    console.log("onFunc", delta);
+    console.log("onFunc", delta, a - performance.now());
+    a = performance.now();
   },
   onDone() {
     console.log("onDone", performance.now() - startTime);

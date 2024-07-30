@@ -1,6 +1,6 @@
 {
   "scripts": {
-    "bundle": "esbuild --bundle mod.ts --outfile=./preview/bundle.js --format=esm",
+    "bundle": "esbuild --bundle index.ts --outfile=./preview/bundle.js --format=esm",
     "prettier:check": "prettier -c ./",
     "prettier:write": "prettier --write ."
   },

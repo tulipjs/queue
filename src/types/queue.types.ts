@@ -10,7 +10,7 @@ export type QueueItemProps =
 
 export type BaseItemQueue = {
   id?: number;
-  startTime?: number;
+  accDelta?: number;
   onFunc?: (delta: number) => void | boolean | Promise<void | boolean>;
   onDone?: () => void | Promise<void>;
 };
@@ -34,6 +34,11 @@ export type RepeatItemQueue = {
   repeatEvery: Milliseconds;
   repeats: number;
 } & BaseItemQueue;
+
+export type QueueProps = {
+  onResume?: () => void;
+  onPause?: () => void;
+};
 
 export type QueueMutable = {
   add: (props: QueueItemProps) => number;

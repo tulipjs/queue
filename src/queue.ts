@@ -3,57 +3,71 @@ import type {
   DurationItemQueue,
   QueueItemProps,
   QueueMutable,
+  QueueProps,
   RepeatItemQueue,
 } from "./types/main.ts";
 import { TickerQueue } from "./enums/main.ts";
 
-export const queue = (): QueueMutable => {
+export const queue = (queueProps: QueueProps = {}): QueueMutable => {
   let $lastId = 0;
   let $queueList: QueueItemProps[] = [];
   let $queueIdToDelete: number[] = [];
+  let isActive: boolean = false;
+
+  const $resume = () => {
+    if (isActive) return;
+    isActive = true;
+    queueProps?.onResume?.();
+  };
+  const $pause = () => {
+    if (!isActive) return;
+    isActive = false;
+    queueProps?.onPause?.();
+  };
 
   const $queueMap: Record<
     TickerQueue,
     (props: QueueItemProps, delta: number, index: number) => boolean
   > = {
     //@ts-ignore
-    [TickerQueue.DELAY]: (
-      { startTime, delay, onFunc, onDone }: DelayItemQueue,
-      delta: number,
-    ) => {
-      const isDone = performance.now() > startTime! + delay;
-      if (isDone && onFunc) onFunc(delta);
-      if (isDone && onDone) onDone();
+    [TickerQueue.DELAY]: (item: DelayItemQueue, delta: number) => {
+      item.accDelta! += delta;
+      const isDone = item.accDelta! >= item.delay;
+      if (isDone && item.onFunc) item.onFunc(delta);
+      if (isDone && item.onDone) item.onDone();
       return isDone;
     },
     //@ts-ignore
-    [TickerQueue.DURATION]: (
-      { startTime, duration, onFunc, onDone }: DurationItemQueue,
-      delta: number,
-    ) => {
-      const isDone = performance.now() > startTime! + duration;
-      if (!isDone && onFunc) onFunc(delta);
-      if (isDone && onDone) onDone();
+    [TickerQueue.DURATION]: (item: DurationItemQueue, delta: number) => {
+      item.accDelta! += delta;
+      const isDone = item.accDelta! >= item.duration;
+      if (!isDone && item.onFunc) item.onFunc(delta);
+      if (isDone && item.onDone) item.onDone();
       return isDone;
     },
     //@ts-ignore
-    [TickerQueue.REPEAT]: (
-      { startTime, repeatEvery, onFunc, repeats, onDone }: RepeatItemQueue,
-      delta: number,
-      index,
-    ) => {
+    [TickerQueue.REPEAT]: (item: RepeatItemQueue, delta: number) => {
       // Repeats are 0 or below
-      if (0 >= repeats && repeats !== undefined) {
-        onDone && onDone();
+      if (0 >= item.repeats && item.repeats !== undefined) {
+        if (item.onDone) item.onDone();
         return true;
       }
-      // It's not yet time to call the func
-      if (!(performance.now() > startTime! + repeatEvery)) return false;
 
-      onFunc && onFunc(delta);
-      $queueList[index].startTime = performance.now();
-      //@ts-ignore
-      if (repeats !== undefined) $queueList[index]["repeats"] = repeats - 1;
+      item.accDelta! += delta;
+
+      // It's not yet time to call the func
+      if (item.accDelta! < item.repeatEvery) return false;
+
+      if (item.onFunc) item.onFunc(delta);
+      item.accDelta = 0; // Reset accDelta after calling onFunc
+
+      if (item.repeats !== undefined) item.repeats -= 1;
+
+      // If repeats become 0 after decrementing, call onDone
+      if (item.repeats === 0) {
+        if (item.onDone) item.onDone();
+        return true;
+      }
 
       return false;
     },
@@ -64,6 +78,8 @@ export const queue = (): QueueMutable => {
   };
 
   const tick = (delta: number) => {
+    if (!isActive) return;
+
     removeQueueList();
 
     let index = 0;
@@ -79,6 +95,8 @@ export const queue = (): QueueMutable => {
 
       index++;
     }
+
+    if (!$queueList.length && !$queueIdToDelete.length) $pause();
   };
 
   const removeQueueList = () => {
@@ -96,8 +114,9 @@ export const queue = (): QueueMutable => {
     $queueList.push({
       ...props,
       id,
-      startTime: props.startTime ?? performance.now(),
+      accDelta: 0,
     });
+    $resume();
     return id;
   };
 
@@ -110,8 +129,9 @@ export const queue = (): QueueMutable => {
       $queueList.push({
         ...queueItem,
         id,
-        startTime: queueItem.startTime ?? performance.now(),
+        accDelta: 0,
       });
+      $resume();
       return id;
     });
   const remove = (id: number) => $queueIdToDelete.push(id);

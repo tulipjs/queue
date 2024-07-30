@@ -1,25 +1,14 @@
-import {
-  OnWindowTickFunction,
-  WindowTickerConfig,
-  WindowTickerMutable,
-} from "./types/main.ts";
+import { OnWindowTickFunction, WindowTickerMutable } from "./types/main.ts";
 
 export const windowTicker = (): WindowTickerMutable => {
   let $loopRunning = false;
   let $loopId: number | undefined = undefined;
-  let $fps = 60; // Default FPS
-  let $intervalTicks = 1000 / $fps; // Interval in milliseconds per frame
+  let $fps = 0;
   let $onTick: OnWindowTickFunction | undefined = undefined;
-  let $lastTick = performance.now();
   let $tickCount = 0;
-  let $lastFPSUpdate = performance.now();
+  let $lastFPSUpdate = 0;
   let $framesThisSecond = 0;
-  let $lastNow = performance.now();
-
-  const load = ({ fps }: WindowTickerConfig = {}) => {
-    $fps = fps ?? $fps;
-    $intervalTicks = 1000 / $fps;
-  };
+  let $lastNow = 0;
 
   const pause = () => {
     $loopRunning = false;
@@ -30,41 +19,34 @@ export const windowTicker = (): WindowTickerMutable => {
   };
 
   const start = () => {
-    $lastTick = performance.now();
-    $lastFPSUpdate = performance.now();
+    $lastFPSUpdate = 0;
     $framesThisSecond = 0;
     $loopRunning = true;
-    loop();
+    //@ts-ignore
+    $loopId = requestAnimationFrame(loop);
   };
 
-  const loop = () => {
+  const loop = (now: number) => {
     if (!$loopRunning) return;
 
-    const now = performance.now();
-    const delta = now - $lastTick;
+    if ($lastNow === 0) $lastNow = now;
+    const delta = now - $lastNow;
+    $lastNow = now;
 
-    if (delta >= $intervalTicks) {
-      $lastTick = now - (delta % $intervalTicks);
+    $framesThisSecond++;
 
-      const usage = Math.trunc((1 - delta / $intervalTicks) * 100) / 100;
-
-      $framesThisSecond++;
-
-      if (now - $lastFPSUpdate >= 1000) {
-        $fps = $framesThisSecond;
-        $framesThisSecond = 0;
-        $lastFPSUpdate = now;
-      }
-
-      const ms = performance.now() - $lastNow;
-      if ($onTick)
-        $onTick({ delta, ms, usage, tickCount: $tickCount, fps: $fps });
-      $tickCount++;
+    $lastFPSUpdate += delta;
+    if ($lastFPSUpdate >= 1000) {
+      $fps = $framesThisSecond;
+      $framesThisSecond = 0;
+      $lastFPSUpdate = 0;
     }
+
+    $onTick && $onTick({ delta, tickCount: $tickCount, fps: $fps });
+    $tickCount++;
 
     //@ts-ignore
     $loopId = requestAnimationFrame(loop);
-    $lastNow = performance.now();
   };
 
   const onTick = (onTickCallback: OnWindowTickFunction) =>
@@ -73,7 +55,6 @@ export const windowTicker = (): WindowTickerMutable => {
   const getFPS = (): number => $fps;
 
   return {
-    load,
     start,
     pause,
     onTick,

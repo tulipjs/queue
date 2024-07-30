@@ -8,39 +8,53 @@ var TickerQueue = /* @__PURE__ */ ((TickerQueue2) => {
 })(TickerQueue || {});
 
 // src/queue.ts
-var queue = () => {
+var queue = (queueProps = {}) => {
   let $lastId = 0;
   let $queueList = [];
   let $queueIdToDelete = [];
+  let isActive = false;
+  const $resume = () => {
+    if (isActive) return;
+    isActive = true;
+    queueProps?.onResume?.();
+  };
+  const $pause = () => {
+    if (!isActive) return;
+    isActive = false;
+    queueProps?.onPause?.();
+  };
   const $queueMap = {
     //@ts-ignore
-    [0 /* DELAY */]: ({ startTime, delay, onFunc, onDone }, delta) => {
-      const isDone = performance.now() > startTime + delay;
-      if (isDone && onFunc) onFunc(delta);
-      if (isDone && onDone) onDone();
+    [0 /* DELAY */]: (item, delta) => {
+      item.accDelta += delta;
+      const isDone = item.accDelta >= item.delay;
+      if (isDone && item.onFunc) item.onFunc(delta);
+      if (isDone && item.onDone) item.onDone();
       return isDone;
     },
     //@ts-ignore
-    [1 /* DURATION */]: ({ startTime, duration, onFunc, onDone }, delta) => {
-      const isDone = performance.now() > startTime + duration;
-      if (!isDone && onFunc) onFunc(delta);
-      if (isDone && onDone) onDone();
+    [1 /* DURATION */]: (item, delta) => {
+      item.accDelta += delta;
+      const isDone = item.accDelta >= item.duration;
+      if (!isDone && item.onFunc) item.onFunc(delta);
+      if (isDone && item.onDone) item.onDone();
       return isDone;
     },
     //@ts-ignore
-    [2 /* REPEAT */]: (
-      { startTime, repeatEvery, onFunc, repeats, onDone },
-      delta,
-      index,
-    ) => {
-      if (0 >= repeats && repeats !== void 0) {
-        onDone && onDone();
+    [2 /* REPEAT */]: (item, delta) => {
+      if (0 >= item.repeats && item.repeats !== void 0) {
+        if (item.onDone) item.onDone();
         return true;
       }
-      if (!(performance.now() > startTime + repeatEvery)) return false;
-      onFunc && onFunc(delta);
-      $queueList[index].startTime = performance.now();
-      if (repeats !== void 0) $queueList[index]["repeats"] = repeats - 1;
+      item.accDelta += delta;
+      if (item.accDelta < item.repeatEvery) return false;
+      if (item.onFunc) item.onFunc(delta);
+      item.accDelta = 0;
+      if (item.repeats !== void 0) item.repeats -= 1;
+      if (item.repeats === 0) {
+        if (item.onDone) item.onDone();
+        return true;
+      }
       return false;
     },
     //@ts-ignore
@@ -49,6 +63,7 @@ var queue = () => {
       onFunc && Boolean(onFunc(delta)),
   };
   const tick = (delta) => {
+    if (!isActive) return;
     removeQueueList();
     let index = 0;
     for (const queueItem of $queueList) {
@@ -61,6 +76,7 @@ var queue = () => {
       if (isReadyToBeDeleted) $queueIdToDelete.push(queueItem.id);
       index++;
     }
+    if (!$queueList.length && !$queueIdToDelete.length) $pause();
   };
   const removeQueueList = () => {
     if (!$queueIdToDelete.length) return;
@@ -75,8 +91,9 @@ var queue = () => {
     $queueList.push({
       ...props,
       id,
-      startTime: props.startTime ?? performance.now(),
+      accDelta: 0,
     });
+    $resume();
     return id;
   };
   const addAsync = (queueItem) =>
@@ -88,8 +105,9 @@ var queue = () => {
       $queueList.push({
         ...queueItem,
         id,
-        startTime: queueItem.startTime ?? performance.now(),
+        accDelta: 0,
       });
+      $resume();
       return id;
     });
   const remove = (id) => $queueIdToDelete.push(id);
@@ -118,15 +136,15 @@ var queue = () => {
 var ticker = () => {
   let $loopRunning = false;
   let $loopId = void 0;
-  let $ticks = 60;
-  let $intervalTicks = 1e3 / $ticks;
+  let $ticks;
+  let $intervalTicks;
   let $onTick = void 0;
   let $lastTick = performance.now();
-  let $idealTick = performance.now();
   let $tickCount = 0;
+  let $lastNow = performance.now();
   const load = ({ ticks } = {}) => {
-    $ticks = ticks ?? $ticks;
-    $intervalTicks = 1e3 / $ticks;
+    $ticks = ticks ?? null;
+    if ($ticks) $intervalTicks = 1e3 / $ticks;
   };
   const pause = () => {
     clearTimeout($loopId);
@@ -134,23 +152,26 @@ var ticker = () => {
   };
   const start = () => {
     $lastTick = performance.now();
-    $idealTick = performance.now();
     $loopRunning = true;
     loop();
   };
   const loop = () => {
     const now = performance.now();
-    const deltaTime = now - $lastTick;
-    if (deltaTime > $intervalTicks)
-      $lastTick = now - (deltaTime % $intervalTicks);
-    $idealTick += $intervalTicks;
-    const nextTick = Math.max(0, $idealTick - performance.now());
-    const delta = performance.now() - now;
-    const usage = Math.trunc((1 - nextTick / $intervalTicks) * 100) / 100;
-    if ($onTick) $onTick({ delta, usage, tickCount: $tickCount });
+    const delta = now - $lastTick;
+    if ($intervalTicks && delta > $intervalTicks)
+      $lastTick = now - (delta % $intervalTicks);
+    const ms = performance.now() - $lastNow;
+    const usage = $intervalTicks
+      ? Math.trunc((delta / $intervalTicks) * 100) / 100
+      : null;
+    $onTick && $onTick({ delta, ms, usage, tickCount: $tickCount });
     $tickCount++;
     if (!$loopRunning) return;
-    $loopId = setTimeout(loop, nextTick);
+    $loopId = $intervalTicks
+      ? setTimeout(loop, $intervalTicks)
+      : setTimeout(loop);
+    $lastTick = now;
+    $lastNow = performance.now();
   };
   const onTick = (onTickCallback) => ($onTick = onTickCallback);
   const getTicks = () => $ticks;
@@ -167,17 +188,12 @@ var ticker = () => {
 var windowTicker = () => {
   let $loopRunning = false;
   let $loopId = void 0;
-  let $fps = 60;
-  let $intervalTicks = 1e3 / $fps;
+  let $fps = 0;
   let $onTick = void 0;
-  let $lastTick = performance.now();
   let $tickCount = 0;
-  let $lastFPSUpdate = performance.now();
+  let $lastFPSUpdate = 0;
   let $framesThisSecond = 0;
-  const load = ({ fps } = {}) => {
-    $fps = fps ?? $fps;
-    $intervalTicks = 1e3 / $fps;
-  };
+  let $lastNow = 0;
   const pause = () => {
     $loopRunning = false;
     if ($loopId !== void 0) {
@@ -185,34 +201,30 @@ var windowTicker = () => {
     }
   };
   const start = () => {
-    $lastTick = performance.now();
-    $lastFPSUpdate = performance.now();
+    $lastFPSUpdate = 0;
     $framesThisSecond = 0;
     $loopRunning = true;
-    loop();
+    $loopId = requestAnimationFrame(loop);
   };
-  const loop = () => {
+  const loop = (now) => {
     if (!$loopRunning) return;
-    const now = performance.now();
-    const delta = now - $lastTick;
-    if (delta >= $intervalTicks) {
-      $lastTick = now - (delta % $intervalTicks);
-      const usage = Math.trunc((1 - delta / $intervalTicks) * 100) / 100;
-      $framesThisSecond++;
-      if (now - $lastFPSUpdate >= 1e3) {
-        $fps = $framesThisSecond;
-        $framesThisSecond = 0;
-        $lastFPSUpdate = now;
-      }
-      if ($onTick) $onTick({ delta, usage, tickCount: $tickCount, fps: $fps });
-      $tickCount++;
+    if ($lastNow === 0) $lastNow = now;
+    const delta = now - $lastNow;
+    $lastNow = now;
+    $framesThisSecond++;
+    $lastFPSUpdate += delta;
+    if ($lastFPSUpdate >= 1e3) {
+      $fps = $framesThisSecond;
+      $framesThisSecond = 0;
+      $lastFPSUpdate = 0;
     }
+    $onTick && $onTick({ delta, tickCount: $tickCount, fps: $fps });
+    $tickCount++;
     $loopId = requestAnimationFrame(loop);
   };
   const onTick = (onTickCallback) => ($onTick = onTickCallback);
   const getFPS = () => $fps;
   return {
-    load,
     start,
     pause,
     onTick,

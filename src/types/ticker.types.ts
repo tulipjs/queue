@@ -1,19 +1,16 @@
 export type TickerConfig = {
   ticks?: number;
 };
-export type WindowTickerConfig = {
-  fps?: number;
-};
 
 export type TickData = {
   delta: number;
   ms: number;
-  usage: number;
+  usage: number | null;
   tickCount: number;
 };
 export type WindowTickData = {
   fps: number;
-} & TickData;
+} & Pick<TickData, "delta" | "tickCount">;
 
 export type OnTickFunction = (data: TickData) => void;
 export type OnWindowTickFunction = (data: WindowTickData) => void;
@@ -23,10 +20,9 @@ export type TickerMutable = {
   start: () => void;
   pause: () => void;
   onTick: (onTickCallback: OnTickFunction) => void;
-  getTicks: () => number;
+  getTicks: () => number | null;
 };
 export type WindowTickerMutable = {
-  load: (config?: WindowTickerConfig) => void;
   start: () => void;
   pause: () => void;
   onTick: (onTickCallback: OnWindowTickFunction) => void;

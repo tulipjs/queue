@@ -1,20 +1,19 @@
 import type { OnTickFunction, TickerConfig } from "./types/main.ts";
-import { TickerMutable } from "./types/main.ts";
+import type { TickerMutable } from "./types/main.ts";
 
 export const ticker = (): TickerMutable => {
   let $loopRunning = false;
   let $loopId: number | undefined = undefined;
-  let $ticks = 60;
-  let $intervalTicks = 1000 / $ticks;
+  let $ticks: number | null;
+  let $intervalTicks: number | null;
   let $onTick: OnTickFunction | undefined = undefined;
   let $lastTick = performance.now();
-  let $idealTick = performance.now();
   let $tickCount = 0;
   let $lastNow = performance.now();
 
   const load = ({ ticks }: TickerConfig = {}) => {
-    $ticks = ticks ?? $ticks;
-    $intervalTicks = 1000 / $ticks;
+    $ticks = ticks ?? null;
+    if ($ticks) $intervalTicks = 1000 / $ticks;
   };
 
   const pause = () => {
@@ -24,7 +23,6 @@ export const ticker = (): TickerMutable => {
 
   const start = () => {
     $lastTick = performance.now();
-    $idealTick = performance.now();
     $loopRunning = true;
     loop();
   };
@@ -33,32 +31,33 @@ export const ticker = (): TickerMutable => {
     const now = performance.now();
     const delta = now - $lastTick;
 
-    if (delta > $intervalTicks) $lastTick = now - (delta % $intervalTicks);
-
-    $idealTick += $intervalTicks;
-    const nextTick = Math.max(0, $idealTick - performance.now());
+    if ($intervalTicks && delta > $intervalTicks)
+      $lastTick = now - (delta % $intervalTicks);
 
     const ms = performance.now() - $lastNow;
-    const usage = Math.trunc((1 - nextTick / $intervalTicks) * 100) / 100;
-    if ($onTick) $onTick({ delta, ms, usage, tickCount: $tickCount });
+    const usage = $intervalTicks
+      ? Math.trunc((delta / $intervalTicks) * 100) / 100
+      : null;
+    $onTick && $onTick({ delta, ms, usage, tickCount: $tickCount });
 
     $tickCount++;
 
     if (!$loopRunning) return;
-    $loopId = setTimeout(loop, nextTick);
+    $loopId = $intervalTicks
+      ? setTimeout(loop, $intervalTicks)
+      : setTimeout(loop);
+    $lastTick = now;
     $lastNow = performance.now();
   };
 
   const onTick = (onTickCallback: OnTickFunction) => ($onTick = onTickCallback);
 
-  const getTicks = (): number => $ticks;
+  const getTicks = (): number | null => $ticks;
 
   return {
     load,
-
     start,
     pause,
-
     onTick,
     getTicks,
   };
