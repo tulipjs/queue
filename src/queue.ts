@@ -57,9 +57,9 @@ export const queue = (queueProps: QueueProps = {}): QueueMutable => {
 
       // It's not yet time to call the func
       if (item.accDelta! < item.repeatEvery) return false;
+      item.accDelta! -= item.repeatEvery;
 
       if (item.onFunc) item.onFunc(delta);
-      item.accDelta = 0; // Reset accDelta after calling onFunc
 
       if (item.repeats !== undefined) item.repeats -= 1;
 
