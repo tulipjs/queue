@@ -1,5 +1,5 @@
 {
-  "name": "@oh/queue",
+  "name": "@tu/queue",
   "version": "0.0.0",
   "exports": "./index.ts",
   "imports": {
