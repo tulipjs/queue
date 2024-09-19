@@ -9,7 +9,7 @@ Add a file `.npmrc` with `@jsr:registry=https://npm.jsr.io`
 And add to the `package.json` -> `"@tu/queue": "npm:@jsr/tu@1.0.1"`
 
 ```ts
-import { queue, windowTicker, TickerQueue, ticker } from "@tu/queue";
+import { queue, windowTicker, TickerQueue, ticker } from "@tu__queue/queue";
 
 const $ticker = windowTicker();
 const $queue = queue();
